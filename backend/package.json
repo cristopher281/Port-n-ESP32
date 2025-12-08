@@ -1,0 +1,30 @@
+{
+    "name": "esp32-iot-backend",
+    "version": "1.0.0",
+    "description": "Backend API for ESP32 IoT Monitoring Platform",
+    "main": "server.js",
+    "type": "module",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node --watch server.js",
+        "init-db": "node scripts/init-db.js"
+    },
+    "keywords": [
+        "esp32",
+        "iot",
+        "api",
+        "mysql"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "express": "^4.18.2",
+        "mysql2": "^3.6.5",
+        "dotenv": "^16.3.1",
+        "cors": "^2.8.5",
+        "helmet": "^7.1.0",
+        "express-validator": "^7.0.1",
+        "compression": "^1.7.4",
+        "morgan": "^1.10.0"
+    }
+}
