@@ -28,6 +28,9 @@ export const login = asyncHandler(async (req, res) => {
     const ok = await authService.verifyPassword(password, user.password_hash)
     if (!ok) return errorResponse(res, 'Invalid credentials', 401)
 
+    // optional: log attempt
+    try { const { logLoginAttempt } = await import('../middleware/userLogger.js'); logLoginAttempt(username, true, req.ip) } catch(e){}
+
     // update last login
     await authService.updateLastLogin(user.id)
 

@@ -52,6 +52,15 @@ CREATE TABLE users (
     is_admin BOOLEAN DEFAULT FALSE,
     INDEX idx_username (username)
  ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- Optional login attempts table
+CREATE TABLE IF NOT EXISTS login_attempts (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(100),
+    success TINYINT(1) DEFAULT 0,
+    ip VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 -- Insert sample device for testing
 INSERT INTO devices (name, location, device_type, api_token, status)
 VALUES (

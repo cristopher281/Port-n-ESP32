@@ -9,10 +9,21 @@ const api = axios.create({
   timeout: 10000
 })
 
-// Add admin authorization for protected endpoints
-const getAdminHeaders = () => ({
-  'Authorization': `Bearer ${ADMIN_SECRET}`
-})
+// Add admin/user authorization for protected endpoints
+const getAuthHeaders = () => {
+  // Prefer user JWT stored in localStorage
+  try {
+    const token = localStorage.getItem('auth_token')
+    if (token) return { Authorization: `Bearer ${token}` }
+  } catch (e) {
+    // ignore
+  }
+
+  // Fallback to admin secret for local testing
+  if (ADMIN_SECRET) return { Authorization: `Bearer ${ADMIN_SECRET}` }
+
+  return {}
+}
 
 // Simple interceptor to forward errors
 api.interceptors.response.use(
@@ -57,11 +68,7 @@ export const getDeviceState = async (deviceId = DEVICE_ID) => {
  * @param {object} payload - Optional additional data
  */
 export const sendCommand = async (command, payload = null, deviceId = DEVICE_ID) => {
-  const response = await api.post(
-    `/devices/${deviceId}/command`,
-    { command, payload },
-    { headers: getAdminHeaders() }
-  )
+  const response = await api.post(`/devices/${deviceId}/command`, { command, payload }, { headers: getAuthHeaders() })
   return response.data
 }
 
