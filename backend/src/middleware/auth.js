@@ -50,3 +50,16 @@ export async function verifyDeviceToken(req, res, next) {
         });
     }
 }
+
+/**
+ * Verify admin/API secret token
+ */
+export function requireAdmin(req, res, next) {
+    const token = req.token || (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
+
+    if (!token || token !== authConfig.apiSecret) {
+        return res.status(403).json({ success: false, message: 'Admin token required' });
+    }
+
+    next();
+}

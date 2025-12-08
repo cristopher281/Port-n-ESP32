@@ -29,6 +29,18 @@ CREATE TABLE sensor_readings (
     INDEX idx_sensor_type (sensor_type),
     INDEX idx_timestamp (timestamp)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+-- Create device_commands table to queue commands for devices (open/close)
+CREATE TABLE device_commands (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    device_id INT NOT NULL,
+    command VARCHAR(50) NOT NULL,
+    status ENUM('pending','sent','acknowledged','failed') DEFAULT 'pending',
+    payload JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+    INDEX idx_device_status (device_id, status)
+ ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 -- Insert sample device for testing
 INSERT INTO devices (name, location, device_type, api_token, status)
 VALUES (
