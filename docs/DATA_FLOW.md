@@ -17,30 +17,61 @@ Esta documentación describe en detalle cómo el backend recibe, valida, procesa
 
 El backend sigue una arquitectura en capas que separa responsabilidades:
 
+### Diagrama: Estructura de Capas del Sistema
+
+**Este diagrama muestra** cómo se organiza el backend en capas separadas. Cada petición del ESP32 atraviesa todas estas capas de arriba hacia abajo, asegurando validación y seguridad en cada paso.
+
 ```mermaid
-graph TD
-    A[ESP32 Request] --> B[Express Router]
-    B --> C[Middleware Layer]
-    C --> D[Controller Layer]
-    D --> E[Service Layer]
-    E --> F[Database Layer]
-    F --> G[MySQL]
+flowchart TB
+    subgraph "Entrada"
+        ESP[ESP32 Request]
+    end
     
-    C --> C1[Authentication]
-    C --> C2[Validation]
-    C --> C3[Error Handling]
+    subgraph "Capa de Routing"
+        Router[Express Router]
+    end
     
-    D --> D1[deviceController]
-    D --> D2[sensorController]
+    subgraph "Capa de Middleware"
+        Auth[Authentication]
+        Valid[Validation]
+        Error[Error Handling]
+    end
     
-    E --> E1[deviceService]
-    E --> E2[sensorService]
+    subgraph "Capa de Controladores"
+        DevCtrl[deviceController]
+        SensCtrl[sensorController]
+    end
     
-    style A fill:#e1f5ff
-    style C fill:#ffe1e1
-    style D fill:#fff4e1
-    style E fill:#e1ffe1
-    style F fill:#f0e1ff
+    subgraph "Capa de Servicios"
+        DevSrv[deviceService]
+        SensSrv[sensorService]
+    end
+    
+    subgraph "Capa de Datos"
+        DB[(MySQL Database)]
+    end
+    
+    ESP --> Router
+    Router --> Auth
+    Auth --> Valid
+    Valid --> Error
+    Error --> DevCtrl
+    Error --> SensCtrl
+    DevCtrl --> DevSrv
+    SensCtrl --> SensSrv
+    DevSrv --> DB
+    SensSrv --> DB
+    
+    style ESP fill:#e1f5ff,stroke:#0066cc
+    style Router fill:#fff4e1,stroke:#ff9900
+    style Auth fill:#ffe1e1,stroke:#ff3333
+    style Valid fill:#ffe1e1,stroke:#ff3333
+    style Error fill:#ffe1e1,stroke:#ff3333
+    style DevCtrl fill:#fff4e1,stroke:#ff9900
+    style SensCtrl fill:#fff4e1,stroke:#ff9900
+    style DevSrv fill:#e1ffe1,stroke:#33cc33
+    style SensSrv fill:#e1ffe1,stroke:#33cc33
+    style DB fill:#f0e1ff,stroke:#9933ff
 ```
 
 ### Responsabilidades por Capa
@@ -59,53 +90,65 @@ graph TD
 
 ### Endpoint: POST /api/sensors/data
 
-Cuando el ESP32 envía datos de sensores, la petición pasa por estas etapas:
+### Diagrama: Secuencia Completa de Validación
+
+**Este diagrama muestra** el recorrido completo de una petición desde que el ESP32 envía datos hasta que recibe confirmación. Observa cómo cada middleware valida diferentes aspectos antes de procesar los datos.
 
 ```mermaid
 sequenceDiagram
-    participant ESP32
-    participant Router
-    participant AuthMW as Auth Middleware
-    participant ValidMW as Validation Middleware
-    participant Controller
-    participant Service
-    participant DB as MySQL Database
-
-    ESP32->>Router: POST /api/sensors/data
-    Note over ESP32,Router: Headers:<br/>Authorization: Bearer token<br/>Content-Type: application/json
+    autonumber
+    participant ESP as ESP32
+    participant R as Router
+    participant A as Auth Middleware
+    participant V as Validation Middleware
+    participant C as Controller
+    participant S as Service
+    participant DB as MySQL
     
-    Router->>AuthMW: authenticateToken()
-    AuthMW->>AuthMW: Verificar header Authorization
-    AuthMW->>AuthMW: Validar formato del token
+    Note over ESP: ESP32 envía datos de sensor
+    ESP->>R: POST /api/sensors/data<br/>{device_id, sensor_type, value}
+    
+    Note over R,A: Paso 1: Autenticación
+    R->>A: Verificar token
+    A->>A: Extraer Bearer token
     
     alt Token válido
-        AuthMW->>ValidMW: next()
-    else Token inválido
-        AuthMW-->>ESP32: 401 Unauthorized
+        A->>V: Token OK ✓
+    else Token inválido/faltante
+        A-->>ESP: 401 Unauthorized ✗
     end
     
-    ValidMW->>ValidMW: verifyDeviceToken()
-    ValidMW->>DB: SELECT device_id FROM devices<br/>WHERE token = ?
-    DB-->>ValidMW: device_id o NULL
+    Note over V,DB: Paso 2: Verificar dispositivo
+    V->>DB: SELECT * FROM devices<br/>WHERE token = ?
+    DB-->>V: Datos del dispositivo
     
     alt Dispositivo existe
-        ValidMW->>ValidMW: validateSensorData()
-        ValidMW->>ValidMW: Validar campos required
-        
-        alt Validación exitosa
-            ValidMW->>Controller: submitSensorData()
-            Controller->>Service: saveSensorReading(data)
-            Service->>DB: INSERT INTO sensor_readings
-            DB-->>Service: insertId
-            Service-->>Controller: reading object
-            Controller-->>ESP32: 201 Created<br/>{success: true, data: {...}}
-        else Validación fallida
-            ValidMW-->>ESP32: 400 Bad Request<br/>{errors: [...]}
-        end
+        V->>V: validateSensorData()
     else Dispositivo no existe
-        ValidMW-->>ESP32: 401 Unauthorized
+        V-->>ESP: 401 Unauthorized ✗
+    end
+    
+    Note over V: Paso 3: Validar formato
+    V->>V: Validar campos requeridos
+    
+    alt Validación exitosa
+        V->>C: Datos válidos ✓
+        Note over C,S: Paso 4: Procesar y guardar
+        C->>S: saveSensorReading(data)
+        S->>DB: INSERT INTO sensor_readings
+        DB-->>S: insertId: 1234
+        S-->>C: {id, device_id, value...}
+        C-->>ESP: 201 Created ✓<br/>{success: true}
+    else Validación fallida
+        V-->>ESP: 400 Bad Request ✗<br/>{errors: [...]}
     end
 ```
+
+**Explicación de pasos**:
+1. **Authentication**: Verifica que el token existe y tiene formato correcto
+2. **Device Verification**: Confirma que el dispositivo está registrado
+3. **Data Validation**: Valida que los campos cumplan los requisitos
+4. **Processing**: Guarda los datos en la base de datos
 
 ---
 
@@ -115,7 +158,7 @@ sequenceDiagram
 
 **Archivo**: `src/middleware/auth.js`
 
-#### `authenticateToken(req, res, next)`
+#### Función: `authenticateToken(req, res, next)`
 
 **Propósito**: Verificar que la petición incluye un token válido.
 
@@ -126,6 +169,24 @@ sequenceDiagram
 3. Valida que el token no esté vacío
 4. Pasa el token a `req.token` para uso posterior
 5. Llama a `next()` si todo es válido
+
+### Diagrama: Flujo de Autenticación
+
+**Este diagrama muestra** el proceso paso a paso de cómo se extrae y valida el token de autenticación.
+
+```mermaid
+flowchart LR
+    A[Request Headers] --> B{¿Tiene header<br/>Authorization?}
+    B -->|No| C[❌ Error 401]
+    B -->|Sí| D[Extraer token]
+    D --> E{¿Formato<br/>Bearer TOKEN?}
+    E -->|No| C
+    E -->|Sí| F[Guardar en req.token]
+    F --> G[✓ next]
+    
+    style C fill:#ff6b6b
+    style G fill:#51cf66
+```
 
 **Código simplificado**:
 
@@ -146,35 +207,29 @@ export function authenticateToken(req, res, next) {
 }
 ```
 
-**Flujo**:
-
-```
-Request Headers
-    ↓
-Authorization: Bearer abc123xyz
-    ↓
-Split por espacio → ['Bearer', 'abc123xyz']
-    ↓
-token = 'abc123xyz'
-    ↓
-req.token = 'abc123xyz'
-    ↓
-next() → Siguiente middleware
-```
-
 ---
 
-#### `verifyDeviceToken(req, res, next)`
+#### Función: `verifyDeviceToken(req, res, next)`
 
 **Propósito**: Verificar que el token pertenece a un dispositivo registrado y activo.
 
-**Proceso**:
+### Diagrama: Verificación de Dispositivo
 
-1. Obtiene el token de `req.token` (seteado por `authenticateToken`)
-2. Consulta la base de datos buscando el dispositivo con ese token
-3. Verifica que el dispositivo esté activo (`is_active = 1`)
-4. Guarda el `device_id` en `req.deviceId`
-5. Llama a `next()` si todo es válido
+**Este diagrama muestra** cómo se verifica que el token corresponde a un dispositivo real en la base de datos.
+
+```mermaid
+flowchart TD
+    A[req.token] --> B[Consultar BD]
+    B --> C{¿Dispositivo<br/>encontrado?}
+    C -->|No| D[❌ 401 Invalid token]
+    C -->|Sí| E{¿is_active = 1?}
+    E -->|No| D
+    E -->|Sí| F[Guardar deviceId<br/>en req.deviceId]
+    F --> G[✓ next]
+    
+    style D fill:#ff6b6b
+    style G fill:#51cf66
+```
 
 **Código simplificado**:
 
@@ -204,31 +259,41 @@ export async function verifyDeviceToken(req, res, next) {
 }
 ```
 
-**Flujo**:
-
-```
-req.token = 'abc123xyz'
-    ↓
-SQL: SELECT id FROM devices WHERE token = 'abc123xyz' AND is_active = 1
-    ↓
-Resultado: [{id: 1}]
-    ↓
-req.deviceId = 1
-    ↓
-next() → Siguiente middleware
-```
-
 ---
 
 ### 2. Validation Middleware
 
 **Archivo**: `src/middleware/validate.js`
 
-#### `validateSensorData` (Array de validadores)
+### Diagrama: Validación de Datos del Sensor
 
-**Propósito**: Validar que los datos del sensor tienen el formato correcto.
+**Este diagrama muestra** qué campos se validan y qué reglas se aplican a cada uno.
 
-**Validaciones**:
+```mermaid
+flowchart TB
+    Start[Recibir body] --> V1{device_id<br/>es entero ≥ 1?}
+    V1 -->|No| Err[Agregar error]
+    V1 -->|Sí| V2{sensor_type<br/>es string no vacío?}
+    
+    V2 -->|No| Err
+    V2 -->|Sí| V3{value<br/>es numérico?}
+    
+    V3 -->|No| Err
+    V3 -->|Sí| V4{unit es string?<br/>opcional}
+    
+    V4 --> V5{metadata es objeto?<br/>opcional}
+    
+    V5 --> Check{¿Hay errores?}
+    Check -->|Sí| Fail[❌ 400 Bad Request<br/>Retornar lista de errores]
+    Check -->|No| Pass[✓ next<br/>Continuar al controller]
+    
+    Err --> Check
+    
+    style Fail fill:#ff6b6b
+    style Pass fill:#51cf66
+```
+
+**Validaciones aplicadas**:
 
 ```javascript
 export const validateSensorData = [
@@ -252,95 +317,34 @@ export const validateSensorData = [
 ];
 ```
 
-#### `validate(req, res, next)`
-
-**Proceso**:
-
-1. Recopila todos los errores de validación
-2. Si hay errores, responde con 400 y la lista de errores
-3. Si no hay errores, llama a `next()`
-
-**Código**:
-
-```javascript
-export function validate(req, res, next) {
-    const errors = validationResult(req);
-    
-    if (!errors.isEmpty()) {
-        return res.status(400).json({
-            success: false,
-            message: 'Validation failed',
-            errors: errors.array()
-        });
-    }
-    
-    next();
-}
-```
-
-**Ejemplo de Respuesta de Error**:
-
-```json
-{
-  "success": false,
-  "message": "Validation failed",
-  "errors": [
-    {
-      "msg": "Valid device_id required",
-      "param": "device_id",
-      "location": "body"
-    },
-    {
-      "msg": "Numeric value required",
-      "param": "value",
-      "location": "body"
-    }
-  ]
-}
-```
-
----
-
-### Flujo Completo del Middleware
-
-```
-POST /api/sensors/data
-    |
-    v
-┌─────────────────────────┐
-│ authenticateToken()     │ → Extrae y valida token
-└──────────┬──────────────┘
-           │ req.token = 'abc123'
-           v
-┌─────────────────────────┐
-│ verifyDeviceToken()     │ → Verifica en DB
-└──────────┬──────────────┘
-           │ req.deviceId = 1
-           v
-┌─────────────────────────┐
-│ validateSensorData      │ → Valida campos
-│  - device_id            │
-│  - sensor_type          │
-│  - value                │
-│  - unit (opcional)      │
-│  - metadata (opcional)  │
-└──────────┬──────────────┘
-           │ req.body validado
-           v
-┌─────────────────────────┐
-│ submitSensorData()      │ → Controller
-└─────────────────────────┘
-```
-
 ---
 
 ## Capa de Controladores
 
 **Archivo**: `src/controllers/sensorController.js`
 
-### `submitSensorData(req, res)`
+### Función: `submitSensorData(req, res)`
 
-**Propósito**: Recibir los datos validados y orquestar el guardado.
+### Diagrama: Flujo del Controlador
+
+**Este diagrama muestra** cómo el controlador orquesta el guardado de datos sin manejar detalles de la base de datos.
+
+```mermaid
+flowchart LR
+    A[Request validado] --> B[Controller recibe]
+    B --> C[Llamar a Service]
+    C --> D[sensorService.saveSensorReading]
+    D --> E[Esperar resultado]
+    E --> F[Formatear respuesta]
+    F --> G[successResponse]
+    G --> H[Retornar 201 Created]
+    
+    D -.->|En caso de error| I[asyncHandler captura]
+    I -.-> J[errorHandler middleware]
+    
+    style H fill:#51cf66
+    style J fill:#ff6b6b
+```
 
 **Código**:
 
@@ -353,17 +357,7 @@ export const submitSensorData = asyncHandler(async (req, res) => {
 });
 ```
 
-**Proceso**:
-
-1. Recibe `req.body` ya validado
-2. Llama al servicio `saveSensorReading()`
-3. Espera la respuesta del servicio
-4. Formatea la respuesta con `successResponse()`
-5. Retorna HTTP 201 Created
-
-**`asyncHandler` Wrapper**:
-
-Este wrapper captura automáticamente errores async y los pasa al middleware de error:
+**El `asyncHandler` wrapper** captura automáticamente errores async:
 
 ```javascript
 export const asyncHandler = (fn) => (req, res, next) => {
@@ -377,9 +371,29 @@ export const asyncHandler = (fn) => (req, res, next) => {
 
 **Archivo**: `src/services/sensorService.js`
 
-### `saveSensorReading(data)`
+### Función: `saveSensorReading(data)`
 
-**Propósito**: Guardar la lectura del sensor en la base de datos.
+### Diagrama: Guardado en Base de Datos
+
+**Este diagrama muestra** cómo se transforma el objeto JavaScript a una query SQL y se guarda en MySQL.
+
+```mermaid
+flowchart TB
+    A[Datos del sensor] --> B[Desestructurar campos]
+    B --> C[device_id, sensor_type,<br/>value, unit, metadata]
+    C --> D{¿metadata existe?}
+    D -->|Sí| E[JSON.stringify]
+    D -->|No| F[null]
+    E --> G[Preparar parámetros SQL]
+    F --> G
+    G --> H[Ejecutar INSERT INTO<br/>sensor_readings]
+    H --> I[Obtener insertId]
+    I --> J[Construir objeto de respuesta]
+    J --> K[Agregar timestamp]
+    K --> L[Retornar objeto completo]
+    
+    style L fill:#51cf66
+```
 
 **Código simplificado**:
 
@@ -419,32 +433,15 @@ export async function saveSensorReading(data) {
 }
 ```
 
-**Proceso**:
-
-1. Desestructura los datos del request
-2. Prepara la query SQL con placeholders (`?`)
-3. Convierte `metadata` a JSON string
-4. Ejecuta la query con parámetros (previene SQL injection)
-5. Obtiene el `insertId` del resultado
-6. Retorna el objeto completo con el ID generado
-
-**Query SQL Generado**:
-
-```sql
-INSERT INTO sensor_readings 
-(device_id, sensor_type, value, unit, metadata)
-VALUES (1, 'temperature', 25.5, '°C', '{"battery_level":85}')
-```
-
 ---
 
 ## Ejemplos Paso a Paso
 
 ### Ejemplo 1: Petición Exitosa
 
-#### 1. ESP32 Envía
+#### ESP32 Envía
 
-```cpp
+```http
 POST /api/sensors/data HTTP/1.1
 Host: 192.168.1.100:3000
 Authorization: Bearer eyJhbGc...
@@ -461,71 +458,46 @@ Content-Type: application/json
 }
 ```
 
-#### 2. Router Recibe
+### Diagrama: Flujo Exitoso Completo
 
-```javascript
-// routes/sensors.js
-router.post(
-    '/data',
-    authenticateToken,      // Middleware 1
-    verifyDeviceToken,      // Middleware 2
-    validateSensorData,     // Middleware 3 (array)
-    sensorController.submitSensorData  // Controller
-);
+**Este diagrama muestra** el recorrido exitoso de los datos con todos los valores transformados en cada etapa.
+
+```mermaid
+flowchart LR
+    subgraph "1. ESP32"
+        A["{device_id:1,<br/>temp:25.5}"]
+    end
+    
+    subgraph "2. Authentication"
+        B["token='eyJhbGc...'<br/>✓ Válido"]
+    end
+    
+    subgraph "3. Device Verification"
+        C["deviceId=1<br/>✓ Activo"]
+    end
+    
+    subgraph "4. Validation"
+        D["device_id ✓<br/>sensor_type ✓<br/>value ✓"]
+    end
+    
+    subgraph "5. Service"
+        E["INSERT SQL<br/>params: [1,'temp',25.5]"]
+    end
+    
+    subgraph "6. Database"
+        F["insertId: 1234"]
+    end
+    
+    subgraph "7. Response"
+        G["{id:1234,<br/>value:25.5<br/>✓ 201}"]
+    end
+    
+    A --> B --> C --> D --> E --> F --> G
+    
+    style G fill:#51cf66
 ```
 
-#### 3. Middleware Ejecuta
-
-**authenticateToken**:
-```javascript
-req.headers['authorization'] = 'Bearer eyJhbGc...'
-token = 'eyJhbGc...'
-req.token = 'eyJhbGc...'
-✓ next()
-```
-
-**verifyDeviceToken**:
-```sql
-SELECT id FROM devices WHERE token = 'eyJhbGc...' AND is_active = 1
-→ Resultado: [{id: 1}]
-```
-```javascript
-req.deviceId = 1
-✓ next()
-```
-
-**validateSensorData**:
-```javascript
-body('device_id').isInt({min: 1}) → ✓ (1 es válido)
-body('sensor_type').notEmpty() → ✓ ('temperature' no está vacío)
-body('value').isFloat() → ✓ (25.5 es numérico)
-body('unit').optional() → ✓ ('°C' es string)
-body('metadata').optional().isObject() → ✓ ({...} es objeto)
-✓ next()
-```
-
-#### 4. Controller Ejecuta
-
-```javascript
-// sensorController.js
-const reading = await sensorService.saveSensorReading(req.body);
-```
-
-#### 5. Service Guarda en DB
-
-```sql
-INSERT INTO sensor_readings 
-(device_id, sensor_type, value, unit, metadata)
-VALUES (1, 'temperature', 25.5, '°C', '{"battery_level":85}')
-
-→ insertId: 1234
-```
-
-#### 6. Respuesta Formateada
-
-```javascript
-successResponse(res, reading, 'Sensor data saved successfully', 201);
-```
+**Respuesta Final**:
 
 ```json
 {
@@ -549,26 +521,30 @@ successResponse(res, reading, 'Sensor data saved successfully', 201);
 
 ### Ejemplo 2: Token Inválido
 
-#### ESP32 Envía
+### Diagrama: Flujo con Error de Autenticación
 
+**Este diagrama muestra** dónde se detiene el proceso cuando el token no es válido.
+
+```mermaid
+flowchart LR
+    A[ESP32 Request] --> B[Router]
+    B --> C[authenticateToken]
+    C --> D[verifyDeviceToken]
+    D --> E{¿Token en DB?}
+    E -->|No| F[❌ 401 Unauthorized]
+    E -->|Sí| G[Continuar...]
+    
+    F -.->|Detiene aquí| H[Retorna al ESP32]
+    
+    style F fill:#ff6b6b,stroke:#cc0000,stroke-width:3px
 ```
+
+**Request**:
+```http
 Authorization: Bearer token_invalido123
 ```
 
-#### Flujo
-
-```
-authenticateToken()
-  ✓ Token existe
-
-verifyDeviceToken()
-  SQL: SELECT id FROM devices WHERE token = 'token_invalido123'
-  Resultado: [] (vacío)
-  ✗ DETENIDO
-```
-
-#### Respuesta
-
+**Response**:
 ```json
 {
   "success": false,
@@ -576,38 +552,45 @@ verifyDeviceToken()
 }
 ```
 
-HTTP Status: `401 Unauthorized`
-
 ---
 
 ### Ejemplo 3: Validación Fallida
 
-#### ESP32 Envía
+### Diagrama: Errores de Validación
 
+**Este diagrama muestra** qué sucede cuando los datos tienen formato incorrecto.
+
+```mermaid
+flowchart TB
+    A[Body recibido] --> B[Validar device_id]
+    B --> C[device_id: 'abc' ❌]
+    A --> D[Validar sensor_type]
+    D --> E["sensor_type: '' ❌"]
+    A --> F[Validar value]
+    F --> G["value: '25.5°C' ❌"]
+    
+    C --> H[Error: debe ser número]
+    E --> I[Error: campo vacío]
+    G --> J[Error: debe ser numérico]
+    
+    H --> K[Lista de errores]
+    I --> K
+    J --> K
+    K --> L[❌ 400 Bad Request]
+    
+    style L fill:#ff6b6b
+```
+
+**Request Incorrecto**:
 ```json
 {
-  "device_id": "abc",  // ❌ String en vez de número
-  "sensor_type": "",   // ❌ Vacío
-  "value": "25.5°C"    // ❌ String en vez de número
+  "device_id": "abc",     // ❌ String en vez de número
+  "sensor_type": "",      // ❌ Vacío
+  "value": "25.5°C"       // ❌ String en vez de número
 }
 ```
 
-#### Flujo
-
-```
-authenticateToken() ✓
-verifyDeviceToken() ✓
-
-validateSensorData:
-  device_id: 'abc' no es entero ✗
-  sensor_type: '' está vacío ✗
-  value: '25.5°C' no es numérico ✗
-  
-✗ DETENIDO en validate()
-```
-
-#### Respuesta
-
+**Response**:
 ```json
 {
   "success": false,
@@ -632,13 +615,40 @@ validateSensorData:
 }
 ```
 
-HTTP Status: `400 Bad Request`
-
 ---
 
 ## Resumen del Flujo de Datos
 
-### Tabla de Transformación de Datos
+### Diagrama: Transformación de Datos en Cada Capa
+
+**Este diagrama muestra** cómo los datos se transforman y enriquecen en cada capa del sistema.
+
+```mermaid
+flowchart TD
+    subgraph "Input"
+        A["ESP32<br/>{device_id, sensor_type, value}"]
+    end
+    
+    subgraph "Transformaciones"
+        B["+ token"] --> C["+ deviceId verificado"]
+        C --> D["+ validación completa"]
+        D --> E["+ SQL query"]
+        E --> F["+ insertId de BD"]
+        F --> G["+ timestamp generado"]
+    end
+    
+    subgraph "Output"
+        H["{id, device_id, sensor_type,<br/>value, unit, metadata, timestamp}"]
+    end
+    
+    A --> B
+    G --> H
+    
+    style A fill:#e1f5ff
+    style H fill:#51cf66
+```
+
+### Tabla de Transformación
 
 | Etapa | Input | Output | Agregado |
 |-------|-------|--------|----------|
@@ -652,102 +662,20 @@ HTTP Status: `400 Bad Request`
 | **Database** | SQL Query | Insert result | `insertId` |
 | **Service** | Insert result | Objeto completo | `id`, `timestamp` |
 | **Controller** | Objeto completo | JSON Response | Formato estándar |
-| **ESP32** | HTTP Response | Log/ACK | - |
-
----
-
-## Diagrama Completo con Datos
-
-```mermaid
-graph LR
-    A[ESP32: temp=25.5] -->|POST + JSON| B[Router]
-    B --> C{Auth MW}
-    C -->|token='abc123'| D{Verify MW}
-    D -->|deviceId=1| E{Validation MW}
-    E -->|body validado| F[Controller]
-    F -->|saveSensorReading| G[Service]
-    G -->|INSERT SQL| H[(MySQL)]
-    H -->|insertId=1234| G
-    G -->|reading obj| F
-    F -->|successResponse| I[JSON: 201]
-    I -->|HTTP Response| A
-    
-    C -->|401| J[Error Response]
-    D -->|401| J
-    E -->|400| J
-    J --> A
-```
 
 ---
 
 ## Archivos Involucrados
 
-| Archivo | Líneas Clave | Responsabilidad |
-|---------|--------------|-----------------|
-| `src/app.js` | 49-50 | Monta las rutas `/api/sensors` |
-| `src/routes/sensors.js` | 13-19 | Define ruta POST con middlewares |
-| `src/middleware/auth.js` | 10-25, 30-50 | Autenticación y verificación |
-| `src/middleware/validate.js` | 23-30 | Reglas de validación |
-| `src/controllers/sensorController.js` | 8-11 | Orquestación |
-| `src/services/sensorService.js` | Todo | Lógica de negocio y DB |
-| `src/config/database.js` | Todo | Conexión MySQL |
-
----
-
-## Depuración y Logging
-
-Para ver el flujo de datos en tiempo real, puedes agregar logs:
-
-### En Middleware (auth.js)
-
-```javascript
-export function authenticateToken(req, res, next) {
-    console.log('[AUTH] Headers:', req.headers);
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    console.log('[AUTH] Token extraído:', token);
-    // ...
-}
-```
-
-### En Controller (sensorController.js)
-
-```javascript
-export const submitSensorData = asyncHandler(async (req, res) => {
-    console.log('[CONTROLLER] Body recibido:', req.body);
-    console.log('[CONTROLLER] Device ID:', req.deviceId);
-    const reading = await sensorService.saveSensorReading(req.body);
-    console.log('[CONTROLLER] Reading guardado:', reading);
-    // ...
-});
-```
-
-### En Service (sensorService.js)
-
-```javascript
-export async function saveSensorReading(data) {
-    console.log('[SERVICE] Guardando lectura:', data);
-    const [result] = await pool.query(query, params);
-    console.log('[SERVICE] Insert ID:', result.insertId);
-    // ...
-}
-```
-
-### Salida en Consola
-
-```
-[AUTH] Headers: { authorization: 'Bearer abc123', ... }
-[AUTH] Token extraído: abc123
-[VERIFY] Buscando dispositivo con token: abc123
-[VERIFY] Dispositivo encontrado: ID=1
-[VALIDATION] Validando datos...
-[VALIDATION] ✓ Todos los campos válidos
-[CONTROLLER] Body recibido: { device_id: 1, sensor_type: 'temperature', ... }
-[CONTROLLER] Device ID: 1
-[SERVICE] Guardando lectura: { device_id: 1, ... }
-[SERVICE] Insert ID: 1234
-[CONTROLLER] Reading guardado: { id: 1234, ... }
-```
+| Archivo | Responsabilidad | Líneas Clave |
+|---------|-----------------|--------------|
+| `src/app.js` | Monta las rutas `/api/sensors` | 49-50 |
+| `src/routes/sensors.js` | Define ruta POST con middlewares | 13-19 |
+| `src/middleware/auth.js` | Autenticación y verificación | 10-25, 30-50 |
+| `src/middleware/validate.js` | Reglas de validación | 23-30 |
+| `src/controllers/sensorController.js` | Orquestación | 8-11 |
+| `src/services/sensorService.js` | Lógica de negocio y DB | Todo |
+| `src/config/database.js` | Conexión MySQL | Todo |
 
 ---
 
