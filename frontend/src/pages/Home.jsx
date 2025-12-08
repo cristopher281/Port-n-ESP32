@@ -1,9 +1,3 @@
-import React from 'react'
-import Dashboard from '../features/dashboard/Dashboard'
-
-export default function Home() {
-  return <Dashboard />
-}
 import React, { useState, useEffect, useRef } from 'react'
 import { Lock, Unlock, Power } from 'lucide-react'
 import { getDeviceState, sendCommand } from '../services/api'
