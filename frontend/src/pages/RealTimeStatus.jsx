@@ -1,27 +1,96 @@
 import React, { useState, useEffect } from 'react'
 import { ArrowLeft, Activity, Eye, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { getAllLatestReadings, sendCommand } from '../services/api'
 
 export default function RealTimeStatus() {
     const navigate = useNavigate()
-    const [gateProgress, setGateProgress] = useState(75) // 0-100
+    const [gateProgress, setGateProgress] = useState(0) // 0-100
     const [sensors, setSensors] = useState({
-        motion: true,
-        proximity: 0.5, // meters
+        motion: false,
+        proximity: null, // meters
         system: 'normal' // 'normal' | 'warning' | 'error'
     })
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState(null)
 
-    // Demo: Simulate gate opening/closing
+    // Fetch sensor data on mount and set up polling
     useEffect(() => {
-        const interval = setInterval(() => {
-            // This would normally come from WebSocket
-        }, 1000)
+        fetchSensorData()
+
+        // Poll every 3 seconds for real-time updates
+        const interval = setInterval(fetchSensorData, 3000)
+
         return () => clearInterval(interval)
     }, [])
 
+    const fetchSensorData = async () => {
+        try {
+            const response = await getAllLatestReadings()
+
+            if (response.success && response.data) {
+                const sensorData = response.data
+
+                // Parse sensor readings
+                const newSensors = { ...sensors }
+
+                sensorData.forEach(reading => {
+                    switch (reading.sensor_type) {
+                        case 'motion':
+                            newSensors.motion = reading.value === 1
+                            break
+                        case 'proximity':
+                        case 'distance':
+                            newSensors.proximity = reading.value
+                            break
+                        case 'gate_position':
+                        case 'position':
+                            setGateProgress(Math.round(reading.value))
+                            break
+                        case 'status':
+                        case 'system_status':
+                            newSensors.system = reading.value === 1 ? 'normal' : 'warning'
+                            break
+                    }
+                })
+
+                setSensors(newSensors)
+            }
+            setError(null)
+        } catch (err) {
+            console.error('Error fetching sensor data:', err)
+            // Don't show error on every failed poll, just log it
+        }
+    }
+
     const handleAction = async (action) => {
-        // TODO: Send command to API
-        console.log('Action:', action)
+        if (loading) return
+
+        setLoading(true)
+        setError(null)
+
+        try {
+            let command = action
+            if (action === 'pause') {
+                // Backend doesn't have pause, use stop or close
+                command = 'close'
+            }
+
+            const response = await sendCommand(command)
+
+            if (response.success) {
+                // Forzar actualización INMEDIATA
+                setIsMoving(true)
+                setTimeout(fetchSensorData, 100)
+            } else {
+                setError('Error al enviar comando')
+            }
+        } catch (err) {
+            console.error('Error sending command:', err)
+            setError('Error al comunicarse con el servidor')
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (
@@ -42,6 +111,41 @@ export default function RealTimeStatus() {
 
             {/* Content */}
             <div className="content">
+                {/* Real-time indicator */}
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    marginBottom: '0.5rem',
+                    fontSize: '0.75rem',
+                    color: '#ffd700'
+                }}>
+                    <div style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: '#ffd700',
+                        animation: 'pulse 1s infinite'
+                    }}></div>
+                    Tiempo Real (actualización cada 500ms)
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                    <div style={{
+                        color: '#ff6b6b',
+                        fontSize: '0.875rem',
+                        marginBottom: '1rem',
+                        padding: '0.5rem',
+                        backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                        borderRadius: '0.5rem',
+                        textAlign: 'center'
+                    }}>
+                        {error}
+                    </div>
+                )}
+
                 {/* Camera View */}
                 <div className="camera-view">
                     <img
@@ -55,27 +159,51 @@ export default function RealTimeStatus() {
                 <div className="progress-bar-container">
                     <div className="progress-info">
                         <div className="progress-label">
-                            {gateProgress === 0 ? 'Cerrado' : gateProgress === 100 ? 'Abierto' : 'Abriendo'}
+                            {gateProgress === 0 ? 'Cerrado' : gateProgress === 100 ? 'Abierto' : gateProgress > 50 ? 'Abriendo' : 'Cerrando'}
                         </div>
-                        <div className="progress-value">{gateProgress}%</div>
+                        <div className="progress-value" style={{
+                            fontSize: '1.5rem',
+                            fontWeight: 'bold',
+                            color: isMoving ? '#ffd700' : 'inherit'
+                        }}>
+                            {gateProgress}%
+                        </div>
                     </div>
                     <div className="progress-bar">
                         <div
                             className="progress-fill"
-                            style={{ width: `${gateProgress}%` }}
+                            style={{
+                                width: `${gateProgress}%`,
+                                transition: 'width 0.3s ease-out'
+                            }}
                         />
                     </div>
                 </div>
 
                 {/* Action Buttons */}
                 <div className="action-buttons">
-                    <button className="btn btn-gold" onClick={() => handleAction('open')}>
+                    <button
+                        className="btn btn-gold"
+                        onClick={() => handleAction('open')}
+                        disabled={loading}
+                        style={{ opacity: loading ? 0.6 : 1 }}
+                    >
                         Abrir
                     </button>
-                    <button className="btn btn-dark" onClick={() => handleAction('pause')}>
+                    <button
+                        className="btn btn-dark"
+                        onClick={() => handleAction('pause')}
+                        disabled={loading}
+                        style={{ opacity: loading ? 0.6 : 1 }}
+                    >
                         Pausar
                     </button>
-                    <button className="btn btn-dark" onClick={() => handleAction('close')}>
+                    <button
+                        className="btn btn-dark"
+                        onClick={() => handleAction('close')}
+                        disabled={loading}
+                        style={{ opacity: loading ? 0.6 : 1 }}
+                    >
                         Cerrar
                     </button>
                 </div>
@@ -94,15 +222,17 @@ export default function RealTimeStatus() {
                     </div>
 
                     {/* Proximity Sensor */}
-                    <div className="status-indicator">
-                        <div className={`status-indicator-icon ${sensors.proximity < 1 ? 'error' : 'success'}`}>
-                            <Eye size={18} />
+                    {sensors.proximity !== null && (
+                        <div className="status-indicator">
+                            <div className={`status-indicator-icon ${sensors.proximity < 1 ? 'error' : 'success'}`}>
+                                <Eye size={18} />
+                            </div>
+                            <div className="status-indicator-text">
+                                Sensor de Proximidad: Objeto a {sensors.proximity.toFixed(1)}m
+                            </div>
+                            <div className={`status-indicator-dot ${sensors.proximity < 1 ? 'error' : 'success'}`}></div>
                         </div>
-                        <div className="status-indicator-text">
-                            Sensor de Proximidad: Objeto a {sensors.proximity.toFixed(1)}m
-                        </div>
-                        <div className={`status-indicator-dot ${sensors.proximity < 1 ? 'error' : 'success'}`}></div>
-                    </div>
+                    )}
 
                     {/* System Status */}
                     <div className="status-indicator">
@@ -116,6 +246,14 @@ export default function RealTimeStatus() {
                     </div>
                 </div>
             </div>
+
+            {/* Add pulse animation */}
+            <style>{`
+                @keyframes pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                }
+            `}</style>
         </div>
     )
 }

@@ -1,20 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Lock, Unlock, Power } from 'lucide-react'
+import { getDeviceState, sendCommand } from '../services/api'
 
 export default function Home() {
-    const [status, setStatus] = useState('closed') // 'open' | 'closed' | 'loading'
+    const [status, setStatus] = useState('closed') // 'open' | 'closed' | 'loading' | 'unknown'
     const [pressing, setPressing] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState(null)
     const holdTimer = useRef(null)
 
-    // Simulate fetching status (replace with actual API call)
+    // Fetch status on mount and set up polling
     useEffect(() => {
-        // TODO: Fetch actual status from API
-        const fetchStatus = async () => {
-            // const res = await api.get('/devices/1/status')
-            // setStatus(res.data.status)
-        }
         fetchStatus()
+
+        // Poll every 5 seconds for status updates
+        const interval = setInterval(fetchStatus, 5000)
+
+        return () => clearInterval(interval)
     }, [])
+
+    const fetchStatus = async () => {
+        try {
+            const response = await getDeviceState()
+            if (response.success && response.data) {
+                setStatus(response.data.state || 'unknown')
+            }
+            setError(null)
+        } catch (err) {
+            console.error('Error fetching device state:', err)
+            setError('No se pudo obtener el estado del dispositivo')
+            // Don't change status on error, keep last known state
+        }
+    }
 
     const handlePressStart = () => {
         setPressing(true)
@@ -32,10 +49,31 @@ export default function Home() {
     }
 
     const toggleGate = async () => {
-        const newStatus = status === 'open' ? 'closed' : 'open'
-        setStatus(newStatus)
-        // TODO: Send command to API
-        // await api.post('/devices/1/command', { command: newStatus === 'open' ? 'open' : 'close' })
+        if (loading) return // Prevent multiple simultaneous commands
+
+        const newCommand = status === 'open' ? 'close' : 'open'
+
+        setLoading(true)
+        setError(null)
+
+        try {
+            const response = await sendCommand(newCommand)
+
+            if (response.success) {
+                // Optimistically update UI
+                setStatus(newCommand === 'open' ? 'open' : 'closed')
+
+                // Refresh actual state after a short delay
+                setTimeout(fetchStatus, 2000)
+            } else {
+                setError('Error al enviar comando')
+            }
+        } catch (err) {
+            console.error('Error sending command:', err)
+            setError('Error al comunicarse con el servidor')
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (
@@ -61,6 +99,18 @@ export default function Home() {
             {/* Main Content */}
             <div className="content">
                 <div className="power-button-container">
+                    {/* Error Message */}
+                    {error && (
+                        <div style={{
+                            color: '#ff6b6b',
+                            fontSize: '0.875rem',
+                            marginBottom: '1rem',
+                            textAlign: 'center'
+                        }}>
+                            {error}
+                        </div>
+                    )}
+
                     {/* Status Badge */}
                     <div className="status-badge">
                         {status === 'open' ? (
@@ -68,27 +118,35 @@ export default function Home() {
                                 <Unlock size={20} />
                                 <span>Abierto</span>
                             </>
-                        ) : (
+                        ) : status === 'closed' ? (
                             <>
                                 <Lock size={20} />
                                 <span>Cerrado</span>
+                            </>
+                        ) : (
+                            <>
+                                <Lock size={20} />
+                                <span>Desconocido</span>
                             </>
                         )}
                     </div>
 
                     {/* Power Button */}
                     <div
-                        className={`power-button ${status === 'open' ? 'active' : ''}`}
+                        className={`power-button ${status === 'open' ? 'active' : ''} ${loading ? 'loading' : ''}`}
                         onMouseDown={handlePressStart}
                         onMouseUp={handlePressEnd}
                         onMouseLeave={handlePressEnd}
                         onTouchStart={handlePressStart}
                         onTouchEnd={handlePressEnd}
+                        style={{ opacity: loading ? 0.6 : 1 }}
                     >
                         <Power size={100} strokeWidth={1.5} />
                     </div>
 
-                    <p className="hint-text">Mantén presionado para operar</p>
+                    <p className="hint-text">
+                        {loading ? 'Enviando comando...' : 'Mantén presionado para operar'}
+                    </p>
                 </div>
             </div>
         </div>

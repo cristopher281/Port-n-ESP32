@@ -41,6 +41,17 @@ CREATE TABLE device_commands (
     FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
     INDEX idx_device_status (device_id, status)
  ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
+
+-- Create users table for frontend authentication
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(100) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP NULL,
+    is_admin BOOLEAN DEFAULT FALSE,
+    INDEX idx_username (username)
+ ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 -- Insert sample device for testing
 INSERT INTO devices (name, location, device_type, api_token, status)
 VALUES (

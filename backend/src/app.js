@@ -7,6 +7,7 @@ import morgan from 'morgan';
 // Routes
 import deviceRoutes from './routes/devices.js';
 import sensorRoutes from './routes/sensors.js';
+import authRoutes from './routes/auth.js';
 
 // Middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -48,6 +49,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/devices', deviceRoutes);
 app.use('/api/sensors', sensorRoutes);
+app.use('/api/auth', authRoutes);
 
 // 404 handler
 app.use((req, res) => {
