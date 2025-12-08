@@ -8,6 +8,8 @@ import History from './pages/History'
 import Alerts from './pages/Alerts'
 import RealTimeStatus from './pages/RealTimeStatus'
 import Settings from './pages/Settings'
+import Login from './pages/Login'
+import Register from './pages/Register'
 
 export default function App() {
   const location = useLocation()
@@ -23,6 +25,8 @@ export default function App() {
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/real-time" element={<RealTimeStatus />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
       </Routes>
 
       {showBottomNav && <BottomNav />}

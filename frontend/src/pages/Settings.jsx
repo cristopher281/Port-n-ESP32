@@ -1,3 +1,13 @@
+import React from 'react'
+
+export default function Settings() {
+  return (
+    <div style={{ padding: 16 }}>
+      <h2>Configuración</h2>
+      <p>Ajustes de la aplicación (tema, notificaciones, umbrales)</p>
+    </div>
+  )
+}
 import React, { useState } from 'react'
 import { ChevronLeft, Save } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'

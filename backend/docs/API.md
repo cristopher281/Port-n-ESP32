@@ -22,6 +22,19 @@ Endpoints
 - `PUT /api/devices/:id` - Update device
 - `DELETE /api/devices/:id` - Soft delete (sets `status` to `inactive`)
 
+Authentication / Users
+
+- `POST /api/auth/register` - Register new user
+  - Body: `{ "username", "password" }`
+  - Response: created user (id, username, created_at)
+
+- `POST /api/auth/login` - Login user
+  - Body: `{ "username", "password" }`
+  - Response: `{ token, user }` where `token` is a JWT to use in `Authorization: Bearer <token>`
+
+Device command flow
+See `frontend/docs/COMMUNICATION.md` for a complete explanation of the command enqueueing and polling flow between frontend, backend and ESP32.
+
 Error responses follow the shape: `{ success: false, message: '...', errors?: [...] }`
 
 Examples

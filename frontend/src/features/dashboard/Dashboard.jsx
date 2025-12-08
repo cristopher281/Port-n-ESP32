@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
-import api from '../../services/api'
+import api, { sendCommand as apiSendCommand } from '../../services/api'
+import { getAuthToken } from '../../services/auth'
+import { Link } from 'react-router-dom'
 
 const deviceId = 1 // asumimos dispositivo 1 para demo; ajustar según sea necesario
 
@@ -32,13 +34,8 @@ export default function Dashboard() {
   async function sendCommand(command) {
     setSending(true)
     try {
-      // admin secret read from env (set in local .env)
-      const adminSecret = import.meta.env.VITE_ADMIN_SECRET || ''
-      await api.post(`/devices/${deviceId}/command`, { command }, {
-        headers: {
-          Authorization: `Bearer ${adminSecret}`
-        }
-      })
+      // Use API wrapper which will use user JWT or fallback admin secret
+      await apiSendCommand(command, null, deviceId)
       // optimistically set state until device acknowledges
       setState(command === 'open' ? 'open' : 'closed')
     } catch (err) {
@@ -79,6 +76,11 @@ export default function Dashboard() {
       </section>
 
       <section className="control-area">
+        {!getAuthToken() && (
+          <div style={{ marginBottom: 12 }}>
+            <Link to="/login">Inicia sesión</Link> para operar el portón
+          </div>
+        )}
         <div
           className={`power-button ${state === 'open' ? 'on' : ''}`}
           onMouseDown={handlePressStart}

@@ -1,3 +1,13 @@
+import React from 'react'
+
+export default function RealTimeStatus() {
+  return (
+    <div style={{ padding: 16 }}>
+      <h2>Estado en tiempo real</h2>
+      <p>Pantalla de estado en tiempo real (placeholder)</p>
+    </div>
+  )
+}
 import React, { useState, useEffect } from 'react'
 import { ArrowLeft, Activity, Eye, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'

@@ -1,3 +1,13 @@
+import React from 'react'
+
+export default function Alerts() {
+  return (
+    <div style={{ padding: 16 }}>
+      <h2>Accesos</h2>
+      <p>Gestión de accesos y registro (pendiente desarrollo)</p>
+    </div>
+  )
+}
 import React, { useState, useEffect } from 'react'
 import { ChevronLeft, Filter, AlertTriangle, AlertCircle, Radio } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
