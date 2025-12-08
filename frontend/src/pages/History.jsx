@@ -1,17 +1,8 @@
-import React from 'react'
-
-export default function History() {
-  return (
-    <div style={{ padding: 16 }}>
-      <h2>Historial</h2>
-      <p>Vista de historial de lecturas (pendiente implementar completamente)</p>
-    </div>
-  )
-}
 import React, { useState, useEffect } from 'react'
 import { ChevronLeft, Search, Clock, DoorOpen, DoorClosed, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { getHistory, parseTimestamp } from '../services/api'
+
 
 export default function History() {
     const navigate = useNavigate()

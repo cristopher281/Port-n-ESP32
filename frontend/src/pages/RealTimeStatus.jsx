@@ -1,17 +1,8 @@
-import React from 'react'
-
-export default function RealTimeStatus() {
-  return (
-    <div style={{ padding: 16 }}>
-      <h2>Estado en tiempo real</h2>
-      <p>Pantalla de estado en tiempo real (placeholder)</p>
-    </div>
-  )
-}
 import React, { useState, useEffect } from 'react'
 import { ArrowLeft, Activity, Eye, Shield, CheckCircle, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { getAllLatestReadings, sendCommand } from '../services/api'
+
 
 export default function RealTimeStatus() {
     const navigate = useNavigate()
@@ -23,6 +14,7 @@ export default function RealTimeStatus() {
     })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
+    const [isMoving, setIsMoving] = useState(false)
 
     // Fetch sensor data on mount and set up polling
     useEffect(() => {
