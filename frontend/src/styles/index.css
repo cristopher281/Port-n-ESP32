@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
+  --container-max-width: 920px;
   /* Color Palette: Black, Gold, White */
   --bg-black: #0a0a0a;
   --bg-dark: #121212;
@@ -79,10 +80,64 @@ body::before {
   flex: 1;
   display: flex;
   flex-direction: column;
-  max-width: 600px;
+  max-width: var(--container-max-width);
   margin: 0 auto;
   width: 100%;
   min-height: 100vh;
+  padding-bottom: 80px; /* espacio para bottom nav */
+}
+
+/* Forms & Inputs */
+.form {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 420px;
+}
+
+.form h2 {
+  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+  color: var(--text-white);
+}
+
+.form-input,
+input,
+textarea,
+select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255,255,255,0.02);
+  color: var(--text-white);
+  font-size: 0.95rem;
+  outline: none;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.form-input::placeholder {
+  color: var(--text-muted);
+}
+
+.form-input:focus,
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--gold-primary);
+  box-shadow: 0 4px 18px rgba(255,215,0,0.06);
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.form-error {
+  color: #ff6b6b;
+  font-size: 0.9rem;
 }
 
 /* Top Bar */
