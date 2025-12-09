@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3000/api'
+const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 const ADMIN_SECRET = import.meta.env.VITE_ADMIN_SECRET || ''
 const DEVICE_ID = import.meta.env.VITE_DEVICE_ID || '1'
 
