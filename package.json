@@ -1,0 +1,13 @@
+{
+    "name": "porton-esp32-root",
+    "version": "1.0.0",
+    "description": "Root script to run full stack",
+    "scripts": {
+        "install-all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+        "dev": "concurrently \"cd backend && npm run dev\" \"cd frontend && npm run dev\"",
+        "start": "echo 'Use npm run dev for local development or deploy to Vercel'"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2"
+    }
+}
