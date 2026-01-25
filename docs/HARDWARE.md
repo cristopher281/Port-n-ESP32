@@ -48,26 +48,50 @@ El código fuente se encuentra en la carpeta `firmware/PortonESP32`.
         *   `ArduinoJson` (por Benoit Blanchon) - Versión 6.x o 7.x
         *   `ESP32Servo` (por Kevin Harrington)
 
-### Configuración
+### Configuración del Archivo `secrets.h`
 
-1.  Abre el archivo `firmware/PortonESP32/PortonESP32.ino`.
-2.  Verás una pestaña o archivo adjunto llamado `secrets.h`. Si no está, créalo en la misma carpeta.
-3.  Edita `secrets.h` con tus datos:
+Para que el ESP32 se conecte a tu red y al servidor, necesitas editar el archivo `firmware/PortonESP32/secrets.h`. Si no existe, créalo junto al archivo `.ino`.
+
+#### Paso 1: Configurar WiFi (`WIFI_SSID` y `WIFI_PASS`)
+*   **WIFI_SSID**: Es el nombre exacto de tu red WiFi (ej. "Familia_Perez").
+*   **WIFI_PASS**: La contraseña de esa red.
+
+> **¿Cambió tu red WiFi?**
+> Si cambias de router o contraseña, **debes editar este archivo** con los nuevos datos y **volver a cargar el código** (repetir el paso "Cargar el Código") en el ESP32. El ESP32 no tiene forma de saber la nueva clave automáticamente.
+
+#### Paso 2: Configurar IP del Servidor (`API_BASE_URL`)
+El ESP32 necesita la dirección IP de tu computadora (donde corre el backend) dentro de la red local. **No uses "localhost"**, ya que para el ESP32, "localhost" sería él mismo.
+
+**Cómo obtener tu IP:**
+1.  **Windows**: Abre la terminal (CMD o PowerShell) y escribe `ipconfig`. Busca el adaptador "Wi-Fi" (o Ethernet si usas cable) y copia la dirección **IPv4** (ej. `192.168.1.15`).
+2.  Edita la línea en `secrets.h`:
+    ```cpp
+    const char* API_BASE_URL = "http://192.168.1.15:3000/api"; // Reemplaza con TU IP
+    ```
+
+#### Paso 3: Obtener Token e ID del Dispositivo (`DEVICE_TOKEN` y `DEVICE_ID`)
+Estos valores autentican tu ESP32 con el servidor.
+
+1.  Asegúrate que el backend esté corriendo (`npm run dev`).
+2.  Abre tu aplicación web (o usa Postman).
+3.  Ve al panel de **Administración** (o endpoint `POST /api/devices`).
+4.  Crea un nuevo dispositivo (ej. "Portón Principal").
+5.  **¡IMPORTANTE!** Al crear el dispositivo, el servidor te mostrará un **Token** (una cadena larga de letras y números) una sola vez. Cópialo inmediatamente.
+    *   Si usas la respuesta JSON (Postman), busca el campo `token` dentro de `data`.
+    *   Busca el campo `id` para saber el `DEVICE_ID`.
+6.  Pega estos valores en `secrets.h`.
 
 ```cpp
-// secrets.h
+// Ejemplo de cómo debe quedar secrets.h
+const char* WIFI_SSID = "MiCasa_WiFi";
+const char* WIFI_PASS = "clave12345";
 
-const char* WIFI_SSID = "NOMBRE_DE_TU_WIFI";
-const char* WIFI_PASS = "CONTRASEÑA_WIFI";
+const char* API_BASE_URL = "http://192.168.1.35:3000/api"; 
 
-// IP de tu computadora donde corre el backend.
-// IMPORTANTE: No uses "localhost". Usa la IP de red (ej. 192.168.1.15)
-const char* API_BASE_URL = "http://192.168.1.XX:3000/api"; 
+// Token REAL copiado del backend al crear el dispositivo
+const char* DEVICE_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
 
-// Token que obtienes al crear el dispositivo en la web o vía Postman.
-const char* DEVICE_TOKEN = "eyJhbGciOiJIUzI1NiIs...";
-
-const int DEVICE_ID = 1; // ID que corresponde en la base de datos
+const int DEVICE_ID = 1; // El ID que te dio la base de datos
 ```
 
 ### Cargar el Código
