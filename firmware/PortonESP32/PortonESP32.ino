@@ -2,57 +2,129 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <ESP32Servo.h>
-#include "secrets.h"
-
-// === DEFINICIÓN DE PINES ===
-const int PIN_PIR = 27;     // Sensor de movimiento
-const int PIN_TRIG = 26;    // HC-SR04 Trigger
-const int PIN_ECHO = 25;    // HC-SR04 Echo
-const int PIN_SERVO = 13;   // Servo motor
+#include <WiFiManager.h> // https://github.com/tzapu/WiFiManager
+#include <Preferences.h>
 
 // === OBJETOS GLOBALES ===
 Servo gateServo;
+Preferences preferences;
+WiFiManager wifiManager;
+
+// === VARIABLES DE CONFIGURACIÓN (Se cargan de NVS) ===
+char api_base_url[100] = "http://192.168.1.XX:3000/api";
+char device_token[256] = ""; // Token largo
+char device_id_str[10] = "1"; // Como string para el input field
+int DEVICE_ID = 1; // Entero para el código
+
+// === DEFINICIÓN DE PINES ===
+const int PIN_PIR = 27;
+const int PIN_TRIG = 26;
+const int PIN_ECHO = 25;
+const int PIN_SERVO = 13;
+const int PIN_RESET_CONFIG = 4; // Pin opcional para resetear configuración (Botón a GND)
 
 // === VARIABLES DE ESTADO ===
 unsigned long lastPollTime = 0;
 unsigned long lastSensorTime = 0;
-const long POLL_INTERVAL = 2000;    // Consultar comandos cada 2 segundos
-const long SENSOR_INTERVAL = 5000;  // Enviar sensores cada 5 segundos (o cuando cambie drásticamente)
-
+const long POLL_INTERVAL = 2000;
+const long SENSOR_INTERVAL = 5000;
 bool isGateOpen = false;
 int currentDistance = 0;
-bool motionDetected = false;
 
-// Estado del servo (ángulos)
-const int ANGLE_OPEN = 90;   // Ajustar según instalación (0-180)
-const int ANGLE_CLOSED = 0;  // Ajustar según instalación
+// Estado del servo
+const int ANGLE_OPEN = 90;
+const int ANGLE_CLOSED = 0;
+
+// Flag para guardar configuración
+bool shouldSaveConfig = false;
+
+// Callback cuando se guardan datos desde el portal WiFi
+void saveConfigCallback () {
+  Serial.println("Se guardó la configuración en el Portal");
+  shouldSaveConfig = true;
+}
 
 void setup() {
   Serial.begin(115200);
-  
-  // Configurar Pines
+
+  // 1. Configurar Pines
   pinMode(PIN_PIR, INPUT);
   pinMode(PIN_TRIG, OUTPUT);
   pinMode(PIN_ECHO, INPUT);
+  pinMode(PIN_RESET_CONFIG, INPUT_PULLUP);
   
-  // Configurar Servo
   gateServo.attach(PIN_SERVO);
-  gateServo.write(ANGLE_CLOSED); // Iniciar cerrado
+  gateServo.write(ANGLE_CLOSED);
 
-  // Conectar a WiFi
-  setupWiFi();
+  // 2. Cargar variables guardadas (NVS)
+  preferences.begin("porton_config", false);
+  String stored_url = preferences.getString("api_url", "");
+  String stored_token = preferences.getString("dev_token", "");
+  String stored_id = preferences.getString("dev_id", "1");
+  
+  if (stored_url != "") stored_url.toCharArray(api_base_url, 100);
+  if (stored_token != "") stored_token.toCharArray(device_token, 256);
+  if (stored_id != "") stored_id.toCharArray(device_id_str, 10);
+  
+  DEVICE_ID = atoi(device_id_str);
+  
+  Serial.println("--- Configuración Cargada ---");
+  Serial.print("API URL: "); Serial.println(api_base_url);
+  Serial.print("ID: "); Serial.println(DEVICE_ID);
+
+  // 3. Configurar WiFiManager
+  // Callback para saber si debemos guardar params
+  wifiManager.setSaveConfigCallback(saveConfigCallback);
+
+  // Campos personalizados para el Portal
+  WiFiManagerParameter custom_api_url("api_url", "API Base URL", api_base_url, 100);
+  WiFiManagerParameter custom_device_token("dev_token", "Device Token (JWT)", device_token, 256);
+  WiFiManagerParameter custom_device_id("dev_id", "Device ID", device_id_str, 10);
+
+  wifiManager.addParameter(&custom_api_url);
+  wifiManager.addParameter(&custom_device_id);
+  wifiManager.addParameter(&custom_device_token);
+
+  // Si se presiona el botón de reset al arrancar, se borran las credenciales
+  if (digitalRead(PIN_RESET_CONFIG) == LOW) {
+    Serial.println("Borrando configuración WiFi y datos...");
+    wifiManager.resetSettings();
+    preferences.clear();
+    delay(1000);
+  }
+
+  // Intentar conectar. Si falla, crea un AP llamado "Porton-Config"
+  // IP por defecto del AP: 192.168.4.1
+  if (!wifiManager.autoConnect("Porton-Config")) {
+    Serial.println("Fallo al conectar y timeout alcanzado");
+    delay(3000);
+    ESP.restart();
+  }
+
+  // 4. Si llegamos aquí, estamos conectados
+  Serial.println("Conectado a la red WiFi :)");
+  Serial.print("IP local: ");
+  Serial.println(WiFi.localIP());
+
+  // 5. Guardar configuración personalizada si hubo cambios
+  if (shouldSaveConfig) {
+    strcpy(api_base_url, custom_api_url.getValue());
+    strcpy(device_token, custom_device_token.getValue());
+    strcpy(device_id_str, custom_device_id.getValue());
+    DEVICE_ID = atoi(device_id_str);
+
+    Serial.println("Guardando configuración personalizada...");
+    preferences.putString("api_url", api_base_url);
+    preferences.putString("dev_token", device_token);
+    preferences.putString("dev_id", device_id_str);
+    preferences.end();
+  }
 }
 
 void loop() {
-  // Mantener WiFi conectado
-  if (WiFi.status() != WL_CONNECTED) {
-    setupWiFi();
-  }
-
   unsigned long now = millis();
 
   // 1. LEER SENSORES Y ENVIAR DATOS
-  // Para evitar saturar, enviamos periódicamente o por eventos
   if (now - lastSensorTime > SENSOR_INTERVAL) {
     readAndSendSensors();
     lastSensorTime = now;
@@ -65,35 +137,12 @@ void loop() {
   }
 }
 
-void setupWiFi() {
-  Serial.print("Conectando a WiFi: ");
-  Serial.println(WIFI_SSID);
-  
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
-  
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi Conectado!");
-    Serial.print("IP: ");
-    Serial.println(WiFi.localIP());
-  } else {
-    Serial.println("\nFallo al conectar WiFi.");
-  }
-}
-
 // === LÓGICA DE SENSORES ===
-
 void readAndSendSensors() {
+  if (WiFi.status() != WL_CONNECTED) return;
+
   // --- PIR ---
   int pirVal = digitalRead(PIN_PIR);
-  // Solo enviar si hay movimiento (opcional, o enviar siempre estado)
-  // Aquí enviamos el estado actual
   sendSensorData("motion", (float)pirVal, "boolean");
 
   // --- HC-SR04 ---
@@ -106,7 +155,6 @@ void readAndSendSensors() {
   long duration = pulseIn(PIN_ECHO, HIGH);
   float distanceCm = duration * 0.034 / 2;
   
-  // Filtro simple para evitar ruidos locos
   if (distanceCm > 0 && distanceCm < 400) {
     sendSensorData("distance", distanceCm, "cm");
     currentDistance = (int)distanceCm;
@@ -115,13 +163,14 @@ void readAndSendSensors() {
 
 void sendSensorData(const char* type, float value, const char* unit) {
   if (WiFi.status() != WL_CONNECTED) return;
+  if (strlen(api_base_url) < 10) return; // URL no válida
 
   HTTPClient http;
-  String url = String(API_BASE_URL) + "/sensors/data";
+  String url = String(api_base_url) + "/sensors/data";
   
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", String("Bearer ") + DEVICE_TOKEN);
+  http.addHeader("Authorization", String("Bearer ") + String(device_token));
   
   StaticJsonDocument<200> doc;
   doc["device_id"] = DEVICE_ID;
@@ -133,51 +182,38 @@ void sendSensorData(const char* type, float value, const char* unit) {
   serializeJson(doc, requestBody);
   
   int httpResponseCode = http.POST(requestBody);
-  
-  if (httpResponseCode > 0) {
-    // Serial.printf("Sensor %s enviado: %d\n", type, httpResponseCode);
-  } else {
-    Serial.printf("Error enviando sensor %s: %s\n", type, http.errorToString(httpResponseCode).c_str());
+  if (httpResponseCode <= 0) {
+     Serial.printf("Error POST %s: %s\n", type, http.errorToString(httpResponseCode).c_str());
   }
-  
   http.end();
 }
 
-// === LÓGICA DE COMANDOS (CONTROL) ===
-
+// === LÓGICA DE COMANDOS ===
 void pollCommands() {
   if (WiFi.status() != WL_CONNECTED) return;
-  
+  if (strlen(api_base_url) < 10) return;
+
   HTTPClient http;
-  // Endpoint: GET /api/devices/:id/commands/poll
-  String url = String(API_BASE_URL) + "/devices/" + String(DEVICE_ID) + "/commands/poll";
+  String url = String(api_base_url) + "/devices/" + String(DEVICE_ID) + "/commands/poll";
   
   http.begin(url);
-  http.addHeader("Authorization", String("Bearer ") + DEVICE_TOKEN);
+  http.addHeader("Authorization", String("Bearer ") + String(device_token));
   
   int httpCode = http.GET();
   
-  if (httpCode == 200) { // OK - Hay comando
+  if (httpCode == 200) {
     String payload = http.getString();
-    Serial.println("Comando recibido: " + payload);
+    Serial.println("Comando: " + payload);
     
     StaticJsonDocument<512> doc;
     DeserializationError error = deserializeJson(doc, payload);
 
     if (!error) {
       String command = doc["data"]["command"].as<String>();
-      int cmdId = doc["data"]["id"]; // ID del comando para confirmar (ack)
-      
+      int cmdId = doc["data"]["id"];
       executeCommand(command, cmdId);
-    } else {
-      Serial.println("Error parseando JSON de comando");
     }
-  } else if (httpCode == 204) {
-    // No hay contenido (no pending commands) - normal loop
-  } else {
-    Serial.printf("Error polling commands: %d\n", httpCode);
   }
-  
   http.end();
 }
 
@@ -186,52 +222,42 @@ void executeCommand(String command, int cmdId) {
   String message = "";
   
   if (command == "open") {
-    Serial.println("EJECUTANDO: ABRIR PORTÓN");
     gateServo.write(ANGLE_OPEN);
     isGateOpen = true;
     success = true;
     message = "Portón abierto";
   } else if (command == "close") {
-    // Verificar obstrucción antes de cerrar (seguridad simple)
-    if (currentDistance > 0 && currentDistance < 20) { // Si hay algo a menos de 20cm
-       Serial.println("ABORTADO: Objeto detectado, no se puede cerrar.");
+    if (currentDistance > 0 && currentDistance < 20) {
        success = false;
-       message = "Obstrucción detectada por sensor de distancia";
+       message = "Obstrucción - Distancia < 20cm";
     } else {
-       Serial.println("EJECUTANDO: CERRAR PORTÓN");
        gateServo.write(ANGLE_CLOSED);
        isGateOpen = false;
        success = true;
        message = "Portón cerrado";
     }
   } else {
-    Serial.println("Comando desconocido: " + command);
-    message = "Comando desconocido";
     success = false;
+    message = "Comando desconocido";
   }
   
-  // Confirmar ejecución al backend (ACK)
   ackCommand(cmdId, success, message);
 }
 
 void ackCommand(int cmdId, bool success, String message) {
   HTTPClient http;
-  // Endpoint: POST /api/devices/:id/commands/:cmdId/ack
-  String url = String(API_BASE_URL) + "/devices/" + String(DEVICE_ID) + "/commands/" + String(cmdId) + "/ack";
+  String url = String(api_base_url) + "/devices/" + String(DEVICE_ID) + "/commands/" + String(cmdId) + "/ack";
   
   http.begin(url);
   http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", String("Bearer ") + DEVICE_TOKEN);
+  http.addHeader("Authorization", String("Bearer ") + String(device_token));
   
   StaticJsonDocument<200> doc;
   doc["success"] = success;
-  doc["result"] = message; // Metadata
+  doc["result"] = message;
   
   String requestBody;
   serializeJson(doc, requestBody);
-  
-  int httpCode = http.POST(requestBody);
-  Serial.printf("ACK enviado (%d): %s\n", httpCode, message.c_str());
-  
+  http.POST(requestBody);
   http.end();
 }

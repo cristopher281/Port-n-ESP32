@@ -64,46 +64,45 @@ El ESP32 necesita la dirección IP de tu computadora (donde corre el backend) de
 
 **Cómo obtener tu IP:**
 1.  **Windows**: Abre la terminal (CMD o PowerShell) y escribe `ipconfig`. Busca el adaptador "Wi-Fi" (o Ethernet si usas cable) y copia la dirección **IPv4** (ej. `192.168.1.15`).
-2.  Edita la línea en `secrets.h`:
-    ```cpp
-    const char* API_BASE_URL = "http://192.168.1.15:3000/api"; // Reemplaza con TU IP
-    ```
+        *   `WiFiManager` (por **tzapu**) - *¡Esencial para configuración WiFi fácil!*
 
-#### Paso 3: Obtener Token e ID del Dispositivo (`DEVICE_TOKEN` y `DEVICE_ID`)
-Estos valores autentican tu ESP32 con el servidor.
+### Configuración Inicial (¡Sin código!)
 
-1.  Asegúrate que el backend esté corriendo (`npm run dev`).
-2.  Abre tu aplicación web (o usa Postman).
-3.  Ve al panel de **Administración** (o endpoint `POST /api/devices`).
-4.  Crea un nuevo dispositivo (ej. "Portón Principal").
-5.  **¡IMPORTANTE!** Al crear el dispositivo, el servidor te mostrará un **Token** (una cadena larga de letras y números) una sola vez. Cópialo inmediatamente.
-    *   Si usas la respuesta JSON (Postman), busca el campo `token` dentro de `data`.
-    *   Busca el campo `id` para saber el `DEVICE_ID`.
-6.  Pega estos valores en `secrets.h`.
+¡Ya no necesitas editar el código cada vez! El firmware ahora crea su propia red WiFi para que lo configures desde tu celular.
 
-```cpp
-// Ejemplo de cómo debe quedar secrets.h
-const char* WIFI_SSID = "MiCasa_WiFi";
-const char* WIFI_PASS = "clave12345";
+### Cargar el Código por Primera Vez
 
-const char* API_BASE_URL = "http://192.168.1.35:3000/api"; 
-
-// Token REAL copiado del backend al crear el dispositivo
-const char* DEVICE_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...";
-
-const int DEVICE_ID = 1; // El ID que te dio la base de datos
-```
-
-### Cargar el Código
-
-1.  Conecta el ESP32 por USB al PC.
-2.  Selecciona la placa: *Tools > Board > DOIT ESP32 DEVKIT V1* (o similar).
-3.  Selecciona el puerto COM correcto.
-4.  Dale al botón de **Upload** (Flecha derecha).
+1.  Abre `firmware/PortonESP32/PortonESP32.ino`.
+2.  Conecta el ESP32 por USB al PC.
+3.  Selecciona la placa: *Tools > Board > DOIT ESP32 DEVKIT V1* (o similar).
+4.  Selecciona el puerto COM correcto.
+5.  Sube el código a tu ESP32 con el botón **Upload** (Flecha derecha).
     *   *Tip: Si falla conectando ("Connecting..."), mantén presionado el botón "BOOT" en el ESP32 hasta que empiece a cargar.*
-5.  Abre el **Serial Monitor** (115200 baudios) para ver los logs de conexión y depuración.
+6.  Abre el **Serial Monitor** (115200 baudios). Verás que dice: "Iniciando WiFiManager...".
 
-## 4. Probando el Sistema
+## 4. Configuración vía Portal WiFi (Paso a Paso)
+
+Cuando el ESP32 no encuentra una red conocida (o es la primera vez), creará un Punto de Acceso.
+
+1.  Busca en tu celular o laptop una red WiFi llamada **`Porton-Config`**.
+2.  Conéctate a ella (no tiene clave o es una abierta por defecto).
+3.  Automáticamente debería abrirse un navegador ("Iniciar sesión en la red"). Si no, abre tu navegador y ve a `192.168.4.1`.
+4.  Verás un menú. Toca **"Configure WiFi"**.
+5.  **Selecciona tu red WiFi** de la lista.
+6.  Escribe la contraseña de tu WiFi.
+7.  **Campos Personalizados**:
+    *   `API Base URL`: Pon la IP de tu PC (ej. `http://192.168.1.15:3000/api`).
+    *   `Device Token (JWT)`: Pega el token largo que te dio el sistema al crear el dispositivo.
+    *   `Device ID`: El número ID del dispositivo (ej. `1`).
+8.  Dale a **Save**.
+9.  El ESP32 se reiniciará y se conectará automáticamente a tu WiFi con los datos que le diste.
+
+> **¿Necesitas cambiar algo después?**
+> Si cambias de router o de IP:
+> *   El ESP32 no encontrará la red antigua y volverá a crear la red `Porton-Config`.
+> *   Opcionalmente, puedes conectar un botón entre **GND** y el pin **GPIO 4**. Si lo mantienes presionado al encender el ESP32, borrará toda la configuración.
+
+## 5. Probando el Sistema
 
 1.  Asegúrate que el **Backend** esté corriendo (`npm run dev` en la carpeta backend) y que tu PC y el ESP32 estén en la misma red WiFi.
 2.  En el Serial Monitor del Arduino IDE, deberías ver "WiFi Conectado!".
@@ -115,5 +114,7 @@ const int DEVICE_ID = 1; // El ID que te dio la base de datos
 
 *   **Error de conexión HTTP (-1)**: Generalmente significa que el ESP32 no puede alcanzar la IP del servidor.
     *   Verifica que el Firewall de Windows permita conexiones entrantes a Node.js (puerto 3000).
-    *   Verifica que la IP en `secrets.h` sea la correcta de tu PC, no localhost.
+    *   Verifica que la IP en la configuración de WiFiManager sea la correcta de tu PC, no localhost.
 *   **Servo hace ruido pero no se mueve**: Falta de corriente. Usa una fuente de 5V externa (uniendo las tierras/GND).
+*   **No veo la red Porton-Config**: Reinicia el ESP32. Asegúrate que no haya guardado una red anterior válida.
+*   **Captive Portal no abre**: Escribe manualmente `192.168.4.1` en Chrome/Safari.
