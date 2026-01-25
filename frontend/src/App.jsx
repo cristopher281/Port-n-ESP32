@@ -18,7 +18,7 @@ export default function App() {
   const showBottomNav = !location.pathname.includes('/settings') && !location.pathname.includes('/real-time')
 
   return (
-    <div className="app">
+    <div className="app-container">
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/history" element={<History />} />
@@ -39,13 +39,13 @@ function BottomNav() {
 
   const navItems = [
     { path: '/', label: 'Inicio', icon: HomeIcon },
+    { path: '/real-time', label: 'Estado', icon: Activity },
     { path: '/history', label: 'Historial', icon: Clock },
-    { path: '/alerts', label: 'Accesos', icon: Bell },
-    { path: '/real-time', label: 'Perfil', icon: Activity }
+    { path: '/settings', label: 'Ajustes', icon: SettingsIcon }
   ]
 
   return (
-    <nav className="bottom-nav">
+    <nav className="glass-nav">
       {navItems.map((item) => {
         const Icon = item.icon
         const isActive = location.pathname === item.path
@@ -54,9 +54,9 @@ function BottomNav() {
           <Link
             key={item.path}
             to={item.path}
-            className={`nav-item ${isActive ? 'active' : ''}`}
+            className={`nav-link ${isActive ? 'active' : ''}`}
           >
-            <Icon size={24} />
+            <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
             <span>{item.label}</span>
           </Link>
         )

@@ -77,18 +77,11 @@ export default function Home() {
     }
 
     return (
-        <div className="page">
+        <div className="page-content">
             {/* Top Bar */}
             <div className="top-bar">
-                <button className="icon-btn">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="3" y1="12" x2="21" y2="12" />
-                        <line x1="3" y1="6" x2="21" y2="6" />
-                        <line x1="3" y1="18" x2="21" y2="18" />
-                    </svg>
-                </button>
-                <h1>Mi Portón</h1>
-                <button className="icon-btn">
+                <div className="top-bar-title">Mi Portón</div>
+                <button className="btn-icon-glass">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <circle cx="12" cy="12" r="3" />
                         <path d="M12 1v6m0 6v6m5.656-15.656l-4.243 4.243m-2.828 2.829l-4.243 4.243M23 12h-6m-6 0H1m15.656 5.656l-4.243-4.243m-2.828-2.828l-4.243-4.243" />
@@ -96,58 +89,70 @@ export default function Home() {
                 </button>
             </div>
 
-            {/* Main Content */}
-            <div className="content">
-                <div className="power-button-container">
-                    {/* Error Message */}
-                    {error && (
-                        <div style={{
-                            color: '#ff6b6b',
-                            fontSize: '0.875rem',
-                            marginBottom: '1rem',
-                            textAlign: 'center'
-                        }}>
-                            {error}
-                        </div>
+            {/* Main Control Area */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+
+                {/* Status Indicator */}
+                <div className={`status-pill ${status === 'open' ? 'open' : status === 'closed' ? 'closed' : ''}`}>
+                    {status === 'open' ? (
+                        <>
+                            <Unlock size={18} />
+                            <span>ABIERTO</span>
+                        </>
+                    ) : status === 'closed' ? (
+                        <>
+                            <Lock size={18} />
+                            <span>CERRADO</span>
+                        </>
+                    ) : (
+                        <>
+                            <Activity size={18} className="animate-pulse" />
+                            <span>CONECTANDO...</span>
+                        </>
                     )}
-
-                    {/* Status Badge */}
-                    <div className="status-badge">
-                        {status === 'open' ? (
-                            <>
-                                <Unlock size={20} />
-                                <span>Abierto</span>
-                            </>
-                        ) : status === 'closed' ? (
-                            <>
-                                <Lock size={20} />
-                                <span>Cerrado</span>
-                            </>
-                        ) : (
-                            <>
-                                <Lock size={20} />
-                                <span>Desconocido</span>
-                            </>
-                        )}
-                    </div>
-
-                    {/* Power Button */}
-                    <div
-                        className={`power-button ${status === 'open' ? 'active' : ''} ${loading ? 'loading' : ''}`}
-                        onMouseDown={handlePressStart}
-                        onMouseUp={handlePressEnd}
-                        onMouseLeave={handlePressEnd}
-                        onTouchStart={handlePressStart}
-                        onTouchEnd={handlePressEnd}
-                        style={{ opacity: loading ? 0.6 : 1 }}
-                    >
-                        <Power size={100} strokeWidth={1.5} />
-                    </div>
-
-                    <p className="hint-text">
-                        {loading ? 'Enviando comando...' : 'Mantén presionado para operar'}
-                    </p>
                 </div>
+
+                {/* Power Button */}
+                <div
+                    className={`power-control ${status === 'open' ? 'active' : ''} ${pressing ? 'pressing' : ''}`}
+                    onMouseDown={handlePressStart}
+                    onMouseUp={handlePressEnd}
+                    onMouseLeave={handlePressEnd}
+                    onTouchStart={handlePressStart}
+                    onTouchEnd={handlePressEnd}
+                >
+                    <Power strokeWidth={1.5} />
+                </div>
+
+                {/* Hint Text */}
+                <p style={{
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.9rem',
+                    marginTop: '1rem',
+                    opacity: loading ? 0.7 : 1,
+                    textAlign: 'center'
+                }}>
+                    {loading ? 'Procesando comando...' : 'Mantén presionado para operar'}
+                </p>
+
+                {/* Error Message */}
+                {error && (
+                    <div style={{
+                        marginTop: '20px',
+                        padding: '10px 16px',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                        borderRadius: '12px',
+                        color: '#ef4444',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}>
+                        <span style={{ fontSize: '1.2em' }}>⚠️</span>
+                        {error}
+                    </div>
+                )}
             </div>
         </div>
     )
