@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ArrowLeft, Save, Camera, Bell, Shield, Sliders } from 'lucide-react'
+import { ArrowLeft, Save, Camera, Bell, Shield, Sliders, Cpu } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 export default function Settings() {
@@ -64,6 +64,24 @@ export default function Settings() {
                     <p style={{ marginTop: '8px', fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
                         Introduce la URL directa de la imagen o stream de tu cámara ESP32-CAM.
                     </p>
+                </div>
+
+                {/* Device Management */}
+                <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', color: 'var(--accent-gold)' }}>
+                        <Cpu size={24} />
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: '500', color: 'var(--text-primary)' }}>Hardware</h3>
+                    </div>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                        Gestiona tus ESP32, crea nuevos tokens y revisa el estado de conexión.
+                    </p>
+                    <button
+                        className="btn-glass"
+                        onClick={() => navigate('/admin/devices')}
+                        style={{ width: '100%', justifyContent: 'center' }}
+                    >
+                        Gestionar Dispositivos
+                    </button>
                 </div>
 
                 {/* Operation Settings */}
@@ -162,6 +180,6 @@ export default function Settings() {
 
                 <div style={{ height: '40px' }}></div>
             </div>
-        </div>
+        </div >
     )
 }

@@ -10,6 +10,7 @@ import RealTimeStatus from './pages/RealTimeStatus'
 import Settings from './pages/Settings'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import AdminDevices from './pages/AdminDevices'
 
 export default function App() {
   const location = useLocation()
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/admin/devices" element={<AdminDevices />} />
       </Routes>
 
       {showBottomNav && <BottomNav />}

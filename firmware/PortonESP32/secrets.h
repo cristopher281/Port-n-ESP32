@@ -3,13 +3,14 @@
 #define SECRETS_H
 
 // === Credenciales WiFi ===
-const char* WIFI_SSID = "TU_WIFI_NOMBRE";
-const char* WIFI_PASS = "TU_WIFI_CLAVE";
+// PRECAUCIÓN: No compartas este archivo si contiene tus claves reales.
+const char* WIFI_SSID = "TU_WIFI_NOMBRE_AQUI"; // <--- PON TU NOMBRE DE WIFI AQUI
+const char* WIFI_PASS = "TU_WIFI_CLAVE_AQUI";  // <--- PON TU CONTRASEÑA DE WIFI AQUI
 
 // === Configuración del Servidor ===
 // REEMPLAZA CON LA IP DE TU COMPUTADORA QUE CORRE EL BACKEND
-// Ejemplo: "http://192.168.1.50:3000/api"
-const char* API_BASE_URL = "http://192.168.0.XX:3000/api";
+// Ip configurada automaticamente para tu laptop
+const char* API_BASE_URL = "http://10.95.148.200:3000/api";
 
 // === Token del Dispositivo ===
 // Este token se obtiene al crear el dispositivo en el backend via /api/devices
